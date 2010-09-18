@@ -6,7 +6,7 @@ use strict;
 use Carp qw( croak );
 use Path::Class;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 =head1 NAME
 
@@ -14,7 +14,7 @@ Path::Class::Each - Iterate lines in a file
 
 =head1 VERSION
 
-This document describes Path::Class::Each version 0.02
+This document describes Path::Class::Each version 0.03
 
 =head1 SYNOPSIS
 
@@ -185,6 +185,21 @@ Within the callback the current line will be in C<$_>.
 Return an iterator that returns each of the files in and below a
 directory.
 
+By default only files are returned. The following options may be
+supplied to modify this behaviour:
+
+=over
+
+=item C<< dirs >>
+
+Return directories as well as files.
+
+=item C<< no_files >>
+
+Return directories only.
+
+=back
+
 =cut
 
 sub Path::Class::Dir::iterator {
@@ -193,6 +208,10 @@ sub Path::Class::Dir::iterator {
   croak "each requires a number of name => value options"
    if @opt % 2;
 
+  my %opt      = @opt;
+  my $dirs     = delete $opt{dirs};
+  my $no_files = delete $opt{no_files};
+
   my @queue = $self->children( @opt );
   return sub {
     TRY: {
@@ -200,7 +219,10 @@ sub Path::Class::Dir::iterator {
       my $obj = shift @queue;
       if ( $obj->isa( 'Path::Class::Dir' ) ) {
         unshift @queue, $obj->children( @opt );
-        redo TRY;
+        redo TRY unless $dirs || $no_files;
+      }
+      else {
+        redo TRY if $no_files;
       }
       return $obj;
     }
@@ -220,16 +242,30 @@ The same options that L<iterator> accepts may be passed to C<next_file>:
     print "File: $file\n";
   }
 
+=head3 C<< Path::Class::Dir->next_dir >>
+
+Return the next directory from a recursive search of a directory.
+
+=cut
+
+sub Path::Class::Dir::next_dir { shift->next_file( no_files => 1 ) }
+
 =head3 C<< Path::Class::Dir->each >>
 
 Call a supplied callback for each file in a directory. The same options
 that L<iterator> accepts may be passed:
 
-  dir( 'foo', 'bar' )->each( sub { print "File: $_\n" } );
+  dir( 'foo', 'bar' )->each( dirs => 1, sub { print "Object: $_\n" } );
 
 Within the callback the current file will be in C<$_>.
 
+=head3 C<< Path::Class::Dir->each_dir >>
+
+Call a supplied callback for each subdirectory in a directory.
+
 =cut
+
+sub Path::Class::Dir::each_dir { shift->each( no_files => 1, @_ ) }
 
 BEGIN {
   my @extend = qw( Path::Class::File Path::Class::Dir );
